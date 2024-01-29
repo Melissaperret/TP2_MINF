@@ -70,26 +70,135 @@ void InitFifoComm(void)
    
 } // InitComm
 
- 
+ //-------------------------------------------
+// Auteur: LGA, MPT
+// Description: Check les valeurs sur la FIFO, test de valeurs correctes et 
+//              sauvegarde des valeurs de vitesse et d'angle reçus dans pData
+// Entrées:- pointeur: S_pwmSettings: pData
+// Sorties: entier 32 bits signé 
 // Valeur de retour 0  = pas de message reçu donc local (data non modifié)
 // Valeur de retour 1  = message reçu donc en remote (data mis à jour)
+//-------------------------------------------
 int GetMessage(S_pwmSettings *pData)
 {
-    int commStatus = 0;
-    int32_t nbDonnesLues = 0;
-    int erreur = 0;
-    static uint8_t compteurData = 0, flagMessageOk = 0, cntEssaies = 0;
-    uint8_t tabDatasRecus[5] = {0};
+    // Declaration de variables locales
+    static int8_t commStatus = 0;               
+    uint8_t nbDonnesLues = 0, flagMessageOk = 0, compteurData = 0, i = 0;
+    static uint8_t cntEssaies = 0;
+    int8_t tabDatasRecus[5] = {0};
     U_manip16 crc16;
+    uint16_t valCrc = 0;
     
+    //Retourne la valeur de nombre de données dans la FIFO 
+    nbDonnesLues = GetReadSize(&descrFifoRX); 
     
-    // Traitement de réception à introduire ICI
-    // Lecture et décodage fifo réception
-    // ...
-    
+    // Si nombre de valeurs (byte) dans FIFO est supérieur ou égale à 5
+    if(nbDonnesLues >= MESS_SIZE)
+    {
+        for(i = 0; i < 5; i++)
+        {
+            //Appel de la fonction qui récupère 1 byte de la FIFO et 
+            //sauvegarde dans le tableau tabDatasRecus
+            commStatus = GetCharFromFifo(&descrFifoRX, &tabDatasRecus[i]); 
+        }
+      
+        // Si le premier byte recu est 0xAA
+        if(tabDatasRecus[0] == STX_code)
+        {
+            // Incérmentation de 1 à l'indice de position du tableau
+            compteurData++;
+            
+            // Boucle de test pour valider les 5 valeurs recus 
+            while(flagMessageOk == 0)
+            {
+                // Test anti message tronqué, (test si trame coupé)
+                if(tabDatasRecus[compteurData] != STX_code)
+                {
+                    // Si toutes les donnes recus ne sont pas 0xAA
+                    if(compteurData > 4)
+                    {
+                        compteurData = 0;
+                        
+                        // Sauvegarde des values de CRC dans structure d'union 
+                        // pour CRC
+                        crc16.shl.msb = tabDatasRecus[3];
+                        crc16.shl.lsb = tabDatasRecus[4];
+                        
+                        // Calcul de CRC
+                        valCrc = 0xFFFF;
+                        valCrc = updateCRC16(valCrc, tabDatasRecus[0]);
+                        valCrc = updateCRC16(valCrc, tabDatasRecus[1]);
+                        valCrc = updateCRC16(valCrc, tabDatasRecus[2]);
+                        
+                        // Si le CRC recu et le calculé sont egaux
+                        if(crc16.val == valCrc)
+                        {
+                            // Suavegarde valeurs de vitesse et angle sur pData
+                            pData->SpeedSetting = tabDatasRecus[1];
+                            if(tabDatasRecus[1] < 0)
+                            {
+                                pData->absSpeed = tabDatasRecus[1] * -1;
+                            }
+                            else
+                            {
+                                pData->absSpeed = tabDatasRecus[1];
+                            }
+                            pData->AngleSetting = tabDatasRecus[2];
+                            pData->absAngle = tabDatasRecus[2] + 99;
+                            commStatus = 1;
+                            flagMessageOk = 1;
+                            cntEssaies = 0;
+                        }        
+                        else
+                        {
+                            // Erreur de CRC
+                            // Incremente de 1 compteur d'essaie
+                            LED6_W = !LED6_R;
+                            flagMessageOk = 1;
+                            cntEssaies++;
+                        }
+                    }
+                    else
+                    {
+                        
+                        compteurData++;
+                    }
+                    
+                }
+                else
+                {
+                    // Erreur, message tronqueé 
+                    flagMessageOk = 1;
+                    compteurData = 0;
+                    cntEssaies++;
+                }
+            }
+        }
+        else
+        {
+            cntEssaies++;
+        }
+    }
+    else
+    {
+        // Si le nombre de cycles avec des erreurs ou le nombre de valeurs dans FIFO
+        // < 5
+        if(cntEssaies < 10)
+        {
+            cntEssaies++;
+        }
+        else
+        {
+            //LED6_W = !LED6_R;
+            commStatus = 0;
+            cntEssaies = 0;
+            compteurData = 0;
+        }
+    }
     
     // Gestion controle de flux de la réception
-    if(GetWriteSpace ( &descrFifoRX) >= (2*MESS_SIZE)) {
+    if(GetWriteSpace ( &descrFifoRX) >= (2*MESS_SIZE)) 
+    {
         // autorise émission par l'autre
         RS232_RTS = 0;
     }
@@ -97,15 +206,24 @@ int GetMessage(S_pwmSettings *pData)
 } // GetMessage
 
 
-// Fonction d'envoi des messages, appel cyclique
+//-------------------------------------------
+// Auteur: LGA, MPT
+// Description: Fonction de check s'il y a des valeurs a envoyer, et construit structure pour envoi
+// Entrées: pointeur pData avec valeurs de Vitesse, angle
+// Sorties: -
+//-------------------------------------------
 void SendMessage(S_pwmSettings *pData)
 {
-    int8_t freeSize;
-    U_manip16 valCrc16; 
+    // Variables locales
+    int8_t freeSize;        // Variable de nombre de spaces vides dans FIFO
+    U_manip16 valCrc16;     
     
+    // Appel de fonction pour connaitre le space disponible dans FIFO
     freeSize = GetWriteSpace(&descrFifoTX);
+    
     valCrc16.val = 0xFFFF;
     
+    // Si espace disponible dans FIFO >= 5 (taille du message)
     if(freeSize >= MESS_SIZE)
     {
         // Preparation des donnàes a envoyer
@@ -143,8 +261,8 @@ void SendMessage(S_pwmSettings *pData)
 // !!!!!!!!
  void __ISR(_UART_1_VECTOR, ipl5AUTO) _IntHandlerDrvUsartInstance0(void)
 {
-     //uint8_t freeSize;
-     uint8_t TxSize;
+     // Declaration de variables locales
+     uint8_t TxSize, freeSize;
      int8_t c;
      int8_t i_cts = 0;
      BOOL TxBuffFull;
@@ -165,40 +283,51 @@ void SendMessage(S_pwmSettings *pData)
             PLIB_USART_ReceiverByteReceive(USART_ID_1);
         }
     }
-   
 
     // Is this an RX interrupt ?
     if ( PLIB_INT_SourceFlagGet(INT_ID_0, INT_SOURCE_USART_1_RECEIVE) &&
-                 PLIB_INT_SourceIsEnabled(INT_ID_0, INT_SOURCE_USART_1_RECEIVE) ) {
-
+                 PLIB_INT_SourceIsEnabled(INT_ID_0, INT_SOURCE_USART_1_RECEIVE) ) 
+    {        
         // Oui Test si erreur parité ou overrun
         UsartStatus = PLIB_USART_ErrorsGet(USART_ID_1);
 
         if ( (UsartStatus & (USART_ERROR_PARITY |
-                             USART_ERROR_FRAMING | USART_ERROR_RECEIVER_OVERRUN)) == 0) {
-
+                             USART_ERROR_FRAMING | USART_ERROR_RECEIVER_OVERRUN)) == 0) 
+        {
             // Traitement RX à faire ICI
             // Lecture des caractères depuis le buffer HW -> fifo SW
-			//  (pour savoir s'il y a une data dans le buffer HW RX : PLIB_USART_ReceiverDataIsAvailable())
-			//  (Lecture via fonction PLIB_USART_ReceiverByteReceive())
-            // ...
-            
+            // (pour savoir s'il y a une data dans le buffer HW RX : PLIB_USART_ReceiverDataIsAvailable())
+            while(PLIB_USART_ReceiverDataIsAvailable(USART_ID_1))
+            {
+                // (Lecture via fonction PLIB_USART_ReceiverByteReceive())
+                c = PLIB_USART_ReceiverByteReceive(USART_ID_1);
+                PutCharInFifo(&descrFifoRX, c); 
+           }
                          
             LED4_W = !LED4_R; // Toggle Led4
+            
             // buffer is empty, clear interrupt flag
             PLIB_INT_SourceFlagClear(INT_ID_0, INT_SOURCE_USART_1_RECEIVE);
-        } else {
+        } 
+        else 
+        {
             // Suppression des erreurs
             // La lecture des erreurs les efface sauf pour overrun
-            if ( (UsartStatus & USART_ERROR_RECEIVER_OVERRUN) == USART_ERROR_RECEIVER_OVERRUN) {
+            if ( (UsartStatus & USART_ERROR_RECEIVER_OVERRUN) == USART_ERROR_RECEIVER_OVERRUN) 
+            {
                    PLIB_USART_ReceiverOverrunErrorClear(USART_ID_1);
             }
         }
 
-        
         // Traitement controle de flux reception à faire ICI
         // Gerer sortie RS232_RTS en fonction de place dispo dans fifo reception
         // ...
+        freeSize = GetWriteSpace(&descrFifoRX);
+        
+        if(freeSize <= 6)
+        {
+            RS232_RTS = 1;
+        }
 
         
     } // end if RX
@@ -208,7 +337,6 @@ void SendMessage(S_pwmSettings *pData)
     if ( PLIB_INT_SourceFlagGet(INT_ID_0, INT_SOURCE_USART_1_TRANSMIT) && 
             PLIB_INT_SourceIsEnabled(INT_ID_0, INT_SOURCE_USART_1_TRANSMIT) ) 
     {
-
         // Traitement TX à faire ICI
         TxSize = GetReadSize(&descrFifoTX);
         // Envoi des caractères depuis le fifo SW -> buffer HW
@@ -221,7 +349,8 @@ void SendMessage(S_pwmSettings *pData)
         //  S'il y a de la place dans le buffer d'émission (PLIB_USART_TransmitterBufferIsFull)
         TxBuffFull = PLIB_USART_TransmitterBufferIsFull(USART_ID_1);
         
-        if((i_cts == 0) && (TxSize > 0) && TxBuffFull == false)
+        
+        if((i_cts == 0) && (TxSize > 0) && (TxBuffFull == false))
         {
             do{
                 GetCharFromFifo(&descrFifoTX, &c);
@@ -230,10 +359,11 @@ void SendMessage(S_pwmSettings *pData)
                 TxSize = GetReadSize(&descrFifoTX);
                 TxBuffFull = PLIB_USART_TransmitterBufferIsFull(USART_ID_1);
                 
-            }while((i_cts == 0) && (TxSize > 0) && TxBuffFull == false);
+            }while((i_cts == 0) && (TxSize > 0) && (TxBuffFull == false));
         }
         //   (envoi avec PLIB_USART_TransmitterByteSend())
 	   
+        
         LED5_W = !LED5_R; // Toggle Led5
 		
         // disable TX interrupt (pour éviter une interrupt. inutile si plus rien à transmettre)

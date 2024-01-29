@@ -56,6 +56,7 @@ SUBSTITUTE GOODS, TECHNOLOGY, SERVICES, OR ANY CLAIMS BY THIRD PARTIES
 #include "app.h"
 #include "Mc32DriverLcd.h"
 #include "Mc32gest_RS232.h"
+#include "gestPWM.h"
 
 // *****************************************************************************
 // *****************************************************************************
@@ -79,7 +80,7 @@ SUBSTITUTE GOODS, TECHNOLOGY, SERVICES, OR ANY CLAIMS BY THIRD PARTIES
 */
 
 APP_DATA appData;
-S_pwmSettings PWMData; 
+
 //S_pwmSettings PWMData;      //Variable pour l'appel de la fonction GPWM_Initialize
 
 // *****************************************************************************
@@ -138,17 +139,26 @@ void APP_Initialize ( void )
 
 void APP_Tasks ( void )
 {
+    // Declaration des variables locales
+    static uint8_t commStatus  = 0;     // Variable d'etat de connexion
+    static uint8_t cntCycles = 0;       // Variable de compteur de cycles du programme
+    
     /* Check the application's current state. */
     switch ( appData.state )
     {
         /* Application's initial state. */
         case APP_STATE_INIT:
-        {        
-            GPWM_Initialize(&PWMData); //Initialisation du pont en H 
+        {
+            /*Initialisation de:
+             * - Pont en H
+             * - Timers : 0,1,2
+             * - OC: 0,1  
+             */
+            GPWM_Initialize(&PWMData); 
             
-            //Initialiser le lcd
-            lcd_init(); 
-            lcd_bl_on();
+            lcd_init();     //Initialiser le lcd
+            lcd_bl_on();    // Allume backlight de LCD
+            
             printf_lcd("Local Settings");
             lcd_gotoxy(1,2); 
             printf_lcd("TP2 PWM&RS232 23-24");
@@ -157,11 +167,9 @@ void APP_Tasks ( void )
             lcd_gotoxy(1,4); 
             printf_lcd("Luis Garcia");
             
-            BSP_InitADC10(); //Initialisation de l'ADC 
-            
-            LED_Off(); //Eteindre toutes les leds
-            
-            InitFifoComm();
+            BSP_InitADC10();    //Initialisation de l'ADC 
+            LED_Off();          //Eteindre toutes les leds
+            InitFifoComm();     // Initialisation de FiFo
 
             APP_UpdateState(APP_STATE_WAIT); //Fait passer à l'état WAIT
             break;
@@ -174,13 +182,52 @@ void APP_Tasks ( void )
         
         case APP_STATE_SERVICE_TASKS:
         { 
-            //Appel des fonctions d'obtention vitesse et angle, d'affichage, d'execution PWM et gestion moteur 
-            GPWM_GetSettings(&PWMData); 
-            GPWM_DispSettings(&PWMData,0 );
-            GPWM_ExecPWM(&PWMData);
+            // Appel de fonction GetMessage, retourne 1 ou 0 pour etat de connexion
+            commStatus = GetMessage(&PWMData);
             
-            GetMessage(&PWMData);
-            SendMessage(&PWMData);
+            // Si etat de connexion = 0 (Settings en local)
+            if(commStatus == LOCAL)
+            {
+                // Appel de fonctions pour obtention de vitesse, angle
+                // Affichage sur LCD, execution PWM et gestion du moteur
+                GPWM_GetSettings(&PWMData);
+                GPWM_DispSettings(&PWMData, commStatus);
+                GPWM_ExecPWM(&PWMData);
+            }
+            else
+            {
+                // Connexion remote = affichage des valeurs de vitesse et angle
+                // Execution PWM et gestion des moteurs
+                GPWM_DispSettings(&PWMData, commStatus);
+                GPWM_ExecPWM(&PWMData);
+            }
+            
+            // Envoie des données par UART chaque 5 cycles du programme
+            if(cntCycles > 4)
+            {
+                // Reset de compteur de cycles de programme
+                cntCycles = 0;
+                // Verification d'etat de connexion
+                if(commStatus != LOCAL)
+                {
+                    // Obtention des parametres de vitesse et angle
+                    GPWM_GetSettings(&PWMDataToSend);
+                    // Appel de fonction pour sauvegarder les valeurs de 
+                    // PWMDataToSend dans FIFO et envoi par UART
+                    SendMessage(&PWMDataToSend);
+                }
+                else
+                {
+                    // Appel de fonction pour sauvegarder les valeurs de
+                    // PWMData (Parametres locaux) dans FIFO en envoi par UART
+                    SendMessage(&PWMData);
+                }
+            }
+            else
+            {
+                // Incrementation de 1 de compteur de cycles du programme
+                cntCycles++;
+            }
             
             APP_UpdateState(APP_STATE_WAIT); //Va dans l'état d'attente
             break;

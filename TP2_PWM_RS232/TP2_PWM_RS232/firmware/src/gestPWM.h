@@ -29,7 +29,7 @@ typedef struct {
     int8_t AngleSetting; //Consigne angle  -90 à +90
 } S_pwmSettings;
 
-extern S_pwmSettings PWMData; 
+extern S_pwmSettings PWMData, PWMDataToSend; 
 
 extern uint8_t compteur; 
 

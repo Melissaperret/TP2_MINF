@@ -17,6 +17,7 @@
 #include "Mc32DriverLcd.h"
 #include "C:\microchip\harmony\v2_06\framework\peripheral\oc\processor\oc_p32mx795f512l.h"
 
+S_pwmSettings PWMDataToSend, PWMData;
 
 //-------------------------------------------
 // Auteur: JAR, MPT
@@ -100,42 +101,44 @@ void GPWM_GetSettings(S_pwmSettings *pData)
 void GPWM_DispSettings(S_pwmSettings *pData, int remote)
 { 
     static uint8_t i = 0; 
+    //S_pwmSettings pDataTemp = 0;
 
     //Clear et affiche sur le LCD seulement une fois
+
     if(i == 0)
     {
+        lcd_ClearLine(1);
         lcd_ClearLine(2);
         lcd_ClearLine(3);
-        
+        lcd_ClearLine(4);
         lcd_gotoxy(1,2); 
         printf_lcd("SpeedSetting");
         lcd_gotoxy(1,3); 
         printf_lcd("adbSpeed");
         lcd_gotoxy(1,4); 
         printf_lcd("Angle");
-        
-        if(remote == 1)
-        {
-            lcd_gotoxy(1,1); //colonne 1, ligne 1 
-            printf_lcd("** Remote Settings");
-        }
-        else
-        {
-            lcd_gotoxy(1,1); //colonne 1, ligne 1 
-            printf_lcd("Local Settings");
-        }
-        
-        
         i++;
     }
+
+    if(remote == LOCAL)
+    {
+        lcd_gotoxy(1,1); //colonne 1, ligne 1 
+        printf_lcd("Local Settings      ");
+    }
+    else
+    {
+        lcd_gotoxy(1,1); //colonne 1, ligne 1 
+        printf_lcd("** Remote Settings");
+    }
+
     
     //Affiche les valeurs de vitesse et d'angle sur le LCD
     lcd_gotoxy(14,2); 
-    printf_lcd("%3d", pData->SpeedSetting);
+    printf_lcd("%3d ", pData->SpeedSetting);
     lcd_gotoxy(15,3); 
-    printf_lcd("%2d", pData->absSpeed);
+    printf_lcd("%2d ", pData->absSpeed);
     lcd_gotoxy(14,4); 
-    printf_lcd("%3d", pData->AngleSetting);
+    printf_lcd("%3d ", pData->AngleSetting);
 }
 
 //-------------------------------------------

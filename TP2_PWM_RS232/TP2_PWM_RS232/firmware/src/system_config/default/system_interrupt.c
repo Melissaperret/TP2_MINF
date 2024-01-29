@@ -72,11 +72,9 @@ SUBSTITUTE GOODS, TECHNOLOGY, SERVICES, OR ANY CLAIMS BY THIRD PARTIES
 // *****************************************************************************
 // *****************************************************************************
 
+//S_pwmSettings pData;  //Variable de sauvegarde de la vitesse et de l'angle
 
-
-S_pwmSettings pData;  //Variable de sauvegarde de la vitesse et de l'angle
 uint8_t compteur = 0; //Variable de comptage pour le PWMSoft 
- 
 
 void __ISR(_TIMER_1_VECTOR, ipl4AUTO) IntHandlerDrvTmrInstance0(void)
 {
@@ -108,19 +106,19 @@ void __ISR(_TIMER_3_VECTOR, ipl0AUTO) IntHandlerDrvTmrInstance2(void)
 }
 void __ISR(_TIMER_4_VECTOR, ipl7AUTO) IntHandlerDrvTmrInstance3(void)
 {
-    LED1_W = 1; //Sert à prendre les mesures, mais peut être retiré pour le code final 
-    
-    GPWM_ExecPWMSoft(&pData); //Appel de la fonction qui crée le PWMSoft 
-    
-    compteur++;
-    
-    //Reset du compteur pour le PWMsoft 
-    if(compteur >= 100) 
-    {
-        compteur = 0;
-    }
-    
-    LED1_W = 0; //Sert à prendre les mesures, mais peut être retiré pour le code final 
+//    LED1_W = 1; //Sert à prendre les mesures, mais peut être retiré pour le code final 
+//    
+//    GPWM_ExecPWMSoft(&pData); //Appel de la fonction qui crée le PWMSoft 
+//    
+//    compteur++;
+//    
+//    //Reset du compteur pour le PWMsoft 
+//    if(compteur >= 100) 
+//    {
+//        compteur = 0;
+//    }
+//    
+//    LED1_W = 0; //Sert à prendre les mesures, mais peut être retiré pour le code final 
 }
 /*******************************************************************************
  End of File
