@@ -104,22 +104,22 @@ void __ISR(_TIMER_3_VECTOR, ipl0AUTO) IntHandlerDrvTmrInstance2(void)
 {
     PLIB_INT_SourceFlagClear(INT_ID_0,INT_SOURCE_TIMER_3); //Clear le flag de l'interruption
 }
-void __ISR(_TIMER_4_VECTOR, ipl7AUTO) IntHandlerDrvTmrInstance3(void)
-{
-//    LED1_W = 1; //Sert à prendre les mesures, mais peut être retiré pour le code final 
-//    
-//    GPWM_ExecPWMSoft(&pData); //Appel de la fonction qui crée le PWMSoft 
-//    
-//    compteur++;
-//    
-//    //Reset du compteur pour le PWMsoft 
-//    if(compteur >= 100) 
-//    {
-//        compteur = 0;
-//    }
-//    
-//    LED1_W = 0; //Sert à prendre les mesures, mais peut être retiré pour le code final 
-}
+//void __ISR(_TIMER_4_VECTOR, ipl7AUTO) IntHandlerDrvTmrInstance3(void)
+//{
+////    LED1_W = 1; //Sert à prendre les mesures, mais peut être retiré pour le code final 
+////    
+////    GPWM_ExecPWMSoft(&pData); //Appel de la fonction qui crée le PWMSoft 
+////    
+////    compteur++;
+////    
+////    //Reset du compteur pour le PWMsoft 
+////    if(compteur >= 100) 
+////    {
+////        compteur = 0;
+////    }
+////    
+////    LED1_W = 0; //Sert à prendre les mesures, mais peut être retiré pour le code final 
+//}
 /*******************************************************************************
  End of File
 */

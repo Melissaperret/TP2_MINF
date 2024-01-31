@@ -35,7 +35,7 @@ void GPWM_Initialize(S_pwmSettings *pData)
     DRV_OC0_Start();
     DRV_OC1_Start();
 
-    //Démarrage des timers 1 à 4
+    //Démarrage des timers 1 à 3
     DRV_TMR0_Start();
     DRV_TMR1_Start();
     DRV_TMR2_Start();
