@@ -83,7 +83,7 @@ int GetMessage(S_pwmSettings *pData)
 {
     // Declaration de variables locales
     static int8_t commStatus = 0;               
-    uint8_t nbDonnesLues = 0, flagMessageOk = 0, compteurData = 0, i = 0;
+    uint8_t nbDonnesLues = 0, i = 0;
     static uint8_t cntEssaies = 0;
     int8_t tabDatasRecus[5] = {0};
     U_manip16 crc16;
@@ -101,88 +101,48 @@ int GetMessage(S_pwmSettings *pData)
             //sauvegarde dans le tableau tabDatasRecus
             commStatus = GetCharFromFifo(&descrFifoRX, &tabDatasRecus[i]); 
         }
-      
-        // Si le premier byte recu est 0xAA
-        if(tabDatasRecus[0] == STX_code)
+
+        // Sauvegarde des valeurs de CRC dans la structure se trouvant dans
+        // l'uniotn (pour CRC)
+        crc16.shl.msb = tabDatasRecus[3];
+        crc16.shl.lsb = tabDatasRecus[4];
+
+        // Calcul de CRC
+        valCrc = 0xFFFF;
+        valCrc = updateCRC16(valCrc, tabDatasRecus[0]);
+        valCrc = updateCRC16(valCrc, tabDatasRecus[1]);
+        valCrc = updateCRC16(valCrc, tabDatasRecus[2]);
+
+        // Si le CRC recu et le calcule sont egaux
+        if(crc16.val == valCrc)
         {
-            // Incérmentation de 1 à l'indice de position du tableau
-            compteurData++;
-            
-            // Boucle de test pour valider les 5 valeurs recus 
-            while(flagMessageOk == 0)
+            // Sauvegarde les valeurs de vitesse et angle sur pData
+            pData->SpeedSetting = tabDatasRecus[1];
+            if(tabDatasRecus[1] < 0)
             {
-                // Test anti message tronqué, (test si trame coupé)
-                if(tabDatasRecus[compteurData] != STX_code)
-                {
-                    // Si toutes les donnes recus ne sont pas 0xAA
-                    if(compteurData > 4)
-                    {
-                        compteurData = 0;
-                        
-                        // Sauvegarde des values de CRC dans structure d'union 
-                        // pour CRC
-                        crc16.shl.msb = tabDatasRecus[3];
-                        crc16.shl.lsb = tabDatasRecus[4];
-                        
-                        // Calcul de CRC
-                        valCrc = 0xFFFF;
-                        valCrc = updateCRC16(valCrc, tabDatasRecus[0]);
-                        valCrc = updateCRC16(valCrc, tabDatasRecus[1]);
-                        valCrc = updateCRC16(valCrc, tabDatasRecus[2]);
-                        
-                        // Si le CRC recu et le calculé sont egaux
-                        if(crc16.val == valCrc)
-                        {
-                            // Suavegarde valeurs de vitesse et angle sur pData
-                            pData->SpeedSetting = tabDatasRecus[1];
-                            if(tabDatasRecus[1] < 0)
-                            {
-                                pData->absSpeed = tabDatasRecus[1] * -1;
-                            }
-                            else
-                            {
-                                pData->absSpeed = tabDatasRecus[1];
-                            }
-                            pData->AngleSetting = tabDatasRecus[2];
-                            pData->absAngle = tabDatasRecus[2] + 99;
-                            commStatus = 1;
-                            flagMessageOk = 1;
-                            cntEssaies = 0;
-                        }        
-                        else
-                        {
-                            // Erreur de CRC
-                            // Incremente de 1 compteur d'essaie
-                            LED6_W = !LED6_R;
-                            flagMessageOk = 1;
-                            cntEssaies++;
-                        }
-                    }
-                    else
-                    {
-                        
-                        compteurData++;
-                    }
-                    
-                }
-                else
-                {
-                    // Erreur, message tronqueé 
-                    flagMessageOk = 1;
-                    compteurData = 0;
-                    cntEssaies++;
-                }
+                pData->absSpeed = tabDatasRecus[1] * -1;
             }
-        }
+            else
+            {
+                pData->absSpeed = tabDatasRecus[1];
+            }
+            pData->AngleSetting = tabDatasRecus[2];
+            pData->absAngle = tabDatasRecus[2] + 99;
+            commStatus = 1;
+            cntEssaies = 0;
+        }        
         else
         {
+            // Erreur de CRC
+            // Incremente de 1 compteur d'essai
+            LED6_W = !LED6_R;
             cntEssaies++;
         }
     }
     else
     {
-        // Si le nombre de cycles avec des erreurs ou le nombre de valeurs dans FIFO
-        // < 5
+        // Si le nombre de cycles avec des erreurs ou le nombre de valeurs dans
+        // la FIFO est inférieure à 5
         if(cntEssaies < 10)
         {
             cntEssaies++;
@@ -192,7 +152,6 @@ int GetMessage(S_pwmSettings *pData)
             //LED6_W = !LED6_R;
             commStatus = 0;
             cntEssaies = 0;
-            compteurData = 0;
         }
     }
     
@@ -205,25 +164,25 @@ int GetMessage(S_pwmSettings *pData)
     return commStatus;
 } // GetMessage
 
-
 //-------------------------------------------
 // Auteur: LGA, MPT
-// Description: Fonction de check s'il y a des valeurs a envoyer, et construit structure pour envoi
-// Entrées: pointeur pData avec valeurs de Vitesse, angle
+// Description: Regarde s'il y a des valeurs à envoyer, et construit une 
+//              structure pour l'envoie des données 
+// Entrées: Entrées:- pointeur: S_pwmSettings: pData
 // Sorties: -
 //-------------------------------------------
 void SendMessage(S_pwmSettings *pData)
 {
     // Variables locales
-    int8_t freeSize;        // Variable de nombre de spaces vides dans FIFO
+    int8_t freeSize;        // Variable de nombre d'espaces vides dans la FIFO
     U_manip16 valCrc16;     
     
-    // Appel de fonction pour connaitre le space disponible dans FIFO
+    // Appel de fonction pour connaitre l'espace disponible dans la FIFO
     freeSize = GetWriteSpace(&descrFifoTX);
     
     valCrc16.val = 0xFFFF;
     
-    // Si espace disponible dans FIFO >= 5 (taille du message)
+    // Si l'espace disponible dans la FIFO est supérieure ou égale à MESS_SIZE
     if(freeSize >= MESS_SIZE)
     {
         // Preparation des donnàes a envoyer
@@ -237,7 +196,7 @@ void SendMessage(S_pwmSettings *pData)
         TxMess.MsbCrc = valCrc16.shl.msb; 
         TxMess.LsbCrc = valCrc16.shl.lsb; 
 
-        // Dépose le message dans le fifo
+        // Dépose le message dans la fifo
         PutCharInFifo (&descrFifoTX, TxMess.Start);
         PutCharInFifo (&descrFifoTX, TxMess.Speed);
         PutCharInFifo (&descrFifoTX, TxMess.Angle);
@@ -253,7 +212,6 @@ void SendMessage(S_pwmSettings *pData)
         PLIB_INT_SourceEnable(INT_ID_0, INT_SOURCE_USART_1_TRANSMIT);                
     }
 }
-
 
 // Interruption USART1
 // !!!!!!!!
@@ -312,7 +270,7 @@ void SendMessage(S_pwmSettings *pData)
         else 
         {
             // Suppression des erreurs
-            // La lecture des erreurs les efface sauf pour overrun
+            // La lecture des erreurs les effaces sauf pour overrun
             if ( (UsartStatus & USART_ERROR_RECEIVER_OVERRUN) == USART_ERROR_RECEIVER_OVERRUN) 
             {
                    PLIB_USART_ReceiverOverrunErrorClear(USART_ID_1);
@@ -343,7 +301,7 @@ void SendMessage(S_pwmSettings *pData)
             
         // Avant d'émettre, on vérifie 3 conditions :
         //  Si CTS = 0 autorisation d'émettre (entrée RS232_CTS)
-        //  S'il y a un caratères à émettre dans le fifo
+        //  S'il y a un caratères à émettre dans la fifo
         i_cts = RS232_CTS;
         
         //  S'il y a de la place dans le buffer d'émission (PLIB_USART_TransmitterBufferIsFull)
