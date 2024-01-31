@@ -140,8 +140,8 @@ void APP_Initialize ( void )
 void APP_Tasks ( void )
 {
     // Declaration des variables locales
-    static uint8_t commStatus  = 0;     // Variable d'etat de connexion
-    static uint8_t cntCycles = 0;       // Variable de compteur de cycles du programme
+    static uint8_t commStatus  = 0;  // Variable d'etat de connexion
+    static uint8_t cntCycles = 0; // Variable de compteur de cycles du programme
     
     /* Check the application's current state. */
     switch ( appData.state )
@@ -149,11 +149,6 @@ void APP_Tasks ( void )
         /* Application's initial state. */
         case APP_STATE_INIT:
         {
-            /*Initialisation de:
-             * - Pont en H
-             * - Timers : 0,1,2
-             * - OC: 0,1  
-             */
             GPWM_Initialize(&PWMData); 
             
             lcd_init();     //Initialiser le lcd
@@ -169,7 +164,7 @@ void APP_Tasks ( void )
             
             BSP_InitADC10();    //Initialisation de l'ADC 
             LED_Off();          //Eteindre toutes les leds
-            InitFifoComm();     // Initialisation de FiFo
+            InitFifoComm();     // Initialisation de la FIFO
 
             APP_UpdateState(APP_STATE_WAIT); //Fait passer à l'état WAIT
             break;
@@ -182,13 +177,13 @@ void APP_Tasks ( void )
         
         case APP_STATE_SERVICE_TASKS:
         { 
-            // Appel de fonction GetMessage, retourne 1 ou 0 pour etat de connexion
+        // Appel de fonction GetMessage, retourne 1 ou 0 pour etat de connexion
             commStatus = GetMessage(&PWMData);
             
-            // Si etat de connexion = 0 (Settings en local)
+            // Si etat de connexion = 0 passe en local settings
             if(commStatus == LOCAL)
             {
-                // Appel de fonctions pour obtention de vitesse, angle
+                // Appel de fonction pour obtention de vitesse et angle
                 // Affichage sur LCD, execution PWM et gestion du moteur
                 GPWM_GetSettings(&PWMData);
                 GPWM_DispSettings(&PWMData, commStatus);
