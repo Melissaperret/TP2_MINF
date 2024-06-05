@@ -20,6 +20,7 @@
 /*--------------------------------------------------------*/
 // Définition des fonctions prototypes
 /*--------------------------------------------------------*/
+#define MAX_LIGNES_LCD  4
 
 
 typedef struct {

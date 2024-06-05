@@ -65,6 +65,7 @@ SUBSTITUTE GOODS, TECHNOLOGY, SERVICES, OR ANY CLAIMS BY THIRD PARTIES
 #include "system_definitions.h"
 #include <stdint.h>
 
+#define COMPTEUR_3SEC 150 //20x150 = 3000ms
 
 // *****************************************************************************
 // *****************************************************************************
@@ -82,7 +83,7 @@ void __ISR(_TIMER_1_VECTOR, ipl4AUTO) IntHandlerDrvTmrInstance0(void)
     static uint8_t i = 0;
 
     //Attente de 3secondes pour l'initialisation 
-    if(i<150) //20x150 = 3000ms
+    if(i < COMPTEUR_3SEC) //20x150 = 3000ms
     {
         i++;
     }

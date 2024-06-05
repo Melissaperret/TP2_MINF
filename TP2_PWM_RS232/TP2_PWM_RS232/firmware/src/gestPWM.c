@@ -100,24 +100,25 @@ void GPWM_GetSettings(S_pwmSettings *pData)
 //-------------------------------------------
 void GPWM_DispSettings(S_pwmSettings *pData, int remote)
 { 
-    static uint8_t i = 0; 
+    static bool afficheUneFois = false; 
+    uint8_t indexClearLCD = 0;
     //S_pwmSettings pDataTemp = 0;
 
     //Clear et affiche sur le LCD seulement une fois
 
-    if(i == 0)
+    if(afficheUneFois == false)
     {
-        lcd_ClearLine(1);
-        lcd_ClearLine(2);
-        lcd_ClearLine(3);
-        lcd_ClearLine(4);
+        for(indexClearLCD = 1; indexClearLCD <= MAX_LIGNES_LCD; indexClearLCD++)
+        {
+            lcd_ClearLine(indexClearLCD);
+        }
         lcd_gotoxy(1,2); 
         printf_lcd("SpeedSetting");
         lcd_gotoxy(1,3); 
         printf_lcd("adbSpeed");
         lcd_gotoxy(1,4); 
         printf_lcd("Angle");
-        i++;
+        afficheUneFois = true;
     }
 
     if(remote == LOCAL)

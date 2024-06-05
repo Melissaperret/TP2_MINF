@@ -203,19 +203,20 @@ void APP_Tasks ( void )
                 // Reset de compteur de cycles de programme
                 cntCycles = 0;
                 // Verification d'etat de connexion
-                if(commStatus != LOCAL)
+                if(commStatus == LOCAL)
+                {
+                    // Appel de fonction pour sauvegarder les valeurs de
+                    // PWMData (Parametres locaux) dans FIFO en envoi par UART
+                    SendMessage(&PWMData);
+                }
+                else
                 {
                     // Obtention des parametres de vitesse et angle
                     GPWM_GetSettings(&PWMDataToSend);
                     // Appel de fonction pour sauvegarder les valeurs de 
                     // PWMDataToSend dans FIFO et envoi par UART
                     SendMessage(&PWMDataToSend);
-                }
-                else
-                {
-                    // Appel de fonction pour sauvegarder les valeurs de
-                    // PWMData (Parametres locaux) dans FIFO en envoi par UART
-                    SendMessage(&PWMData);
+
                 }
             }
             else

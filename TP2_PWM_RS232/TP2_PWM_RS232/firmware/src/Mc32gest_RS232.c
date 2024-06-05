@@ -15,7 +15,7 @@
 #include "Mc32gest_RS232.h"
 #include "gestPWM.h"
 #include "Mc32CalCrc16.h"
-
+#include <stdint.h>
 
 typedef union {
         uint16_t val;
@@ -26,6 +26,7 @@ typedef union {
 
 // Definition pour les messages
 #define MESS_SIZE  5
+#define TAILLE_TABLEAU 3
 // avec int8_t besoin -86 au lieu de 0xAA
 #define STX_code  (-86)
 
@@ -37,6 +38,8 @@ typedef struct {
     uint8_t MsbCrc;
     uint8_t LsbCrc;
 } StruMess;
+
+
 
 // Struct pour émission des messages
 StruMess TxMess;
@@ -83,9 +86,10 @@ int GetMessage(S_pwmSettings *pData)
 {
     // Declaration de variables locales
     static int8_t commStatus = 0;               
-    uint8_t nbDonnesLues = 0, i = 0;
+    uint8_t nbDonnesLues = 0;
+    uint8_t dataIndex = 0;
     static uint8_t cntEssaies = 0;
-    int8_t tabDatasRecus[5] = {0};
+    int8_t tabDatasRecus[MESS_SIZE] = {0};
     U_manip16 crc16;
     uint16_t valCrc = 0;
     
@@ -95,23 +99,24 @@ int GetMessage(S_pwmSettings *pData)
     // Si nombre de valeurs (byte) dans FIFO est supérieur ou égale à 5
     if(nbDonnesLues >= MESS_SIZE)
     {
-        for(i = 0; i < 5; i++)
+        for(dataIndex = 0; dataIndex < MESS_SIZE; dataIndex ++)
         {
             //Appel de la fonction qui récupère 1 byte de la FIFO et 
             //sauvegarde dans le tableau tabDatasRecus
-            commStatus = GetCharFromFifo(&descrFifoRX, &tabDatasRecus[i]); 
+            commStatus = GetCharFromFifo(&descrFifoRX, &tabDatasRecus[dataIndex]); 
         }
 
         // Sauvegarde des valeurs de CRC dans la structure se trouvant dans
         // l'uniotn (pour CRC)
-        crc16.shl.msb = tabDatasRecus[3];
-        crc16.shl.lsb = tabDatasRecus[4];
+        crc16.shl.msb = RxMess.MsbCrc;
+        crc16.shl.lsb = RxMess.LsbCrc;
 
         // Calcul de CRC
         valCrc = 0xFFFF;
-        valCrc = updateCRC16(valCrc, tabDatasRecus[0]);
-        valCrc = updateCRC16(valCrc, tabDatasRecus[1]);
-        valCrc = updateCRC16(valCrc, tabDatasRecus[2]);
+        for(dataIndex = 0; dataIndex < TAILLE_TABLEAU; dataIndex ++)
+        {
+            valCrc = updateCRC16(valCrc, tabDatasRecus[dataIndex]);
+        }
 
         // Si le CRC recu et le calcule sont egaux
         if(crc16.val == valCrc)
@@ -222,7 +227,6 @@ void SendMessage(S_pwmSettings *pData)
      // Declaration de variables locales
      uint8_t TxSize, freeSize;
      int8_t c;
-     int8_t i_cts = 0;
      BOOL TxBuffFull;
      
     USART_ERROR UsartStatus;    
@@ -260,6 +264,7 @@ void SendMessage(S_pwmSettings *pData)
                 // (Lecture via fonction PLIB_USART_ReceiverByteReceive())
                 c = PLIB_USART_ReceiverByteReceive(USART_ID_1);
                 PutCharInFifo(&descrFifoRX, c); 
+                
            }
                          
             LED4_W = !LED4_R; // Toggle Led4
@@ -299,25 +304,19 @@ void SendMessage(S_pwmSettings *pData)
         TxSize = GetReadSize(&descrFifoTX);
         // Envoi des caractères depuis le fifo SW -> buffer HW
             
-        // Avant d'émettre, on vérifie 3 conditions :
-        //  Si CTS = 0 autorisation d'émettre (entrée RS232_CTS)
-        //  S'il y a un caratères à émettre dans la fifo
-        i_cts = RS232_CTS;
-        
         //  S'il y a de la place dans le buffer d'émission (PLIB_USART_TransmitterBufferIsFull)
         TxBuffFull = PLIB_USART_TransmitterBufferIsFull(USART_ID_1);
         
         
-        if((i_cts == 0) && (TxSize > 0) && (TxBuffFull == false))
+        if((RS232_CTS == 0) && (TxSize > 0) && (TxBuffFull == false))
         {
             do{
                 GetCharFromFifo(&descrFifoTX, &c);
                 PLIB_USART_TransmitterByteSend(USART_ID_1, c);
-                i_cts = RS232_CTS;
                 TxSize = GetReadSize(&descrFifoTX);
                 TxBuffFull = PLIB_USART_TransmitterBufferIsFull(USART_ID_1);
                 
-            }while((i_cts == 0) && (TxSize > 0) && (TxBuffFull == false));
+            }while((RS232_CTS == 0) && (TxSize > 0) && (TxBuffFull == false));
         }
         //   (envoi avec PLIB_USART_TransmitterByteSend())
 	   
